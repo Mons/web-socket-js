@@ -70,7 +70,7 @@ The class RFC2817Socket (by Christian Cantrell) effectively lets us implement th
 Install Flex SDK.
 
 $ cd flash-src
-$ mxmlc -output=../WebSocketMain.swf WebSocketMain.as
+$ mxmlc -static-link-runtime-shared-libraries -output=../WebSocketMain.swf WebSocketMain.as
 
 
 * License

@@ -102,8 +102,8 @@
     // Sets/calls them manually here because Flash WebSocketConnection.close cannot fire events
     // which causes weird error:
     // > You are trying to call recursively into the Flash Player which is not allowed.
-    this.readyState = WebSocket.CLOSED;
-    if (this.onclose) this.onclose();
+    //this.readyState = WebSocket.CLOSED;
+    //if (this.onclose) this.onclose();
   };
 
   /**
@@ -292,13 +292,13 @@
     }
   }
 
-  // called from Flash
-  function webSocketLog(message) {
+  // called from Flash, make it visible at global scope
+  webSocketLog = function(message) {
     console.log(decodeURIComponent(message));
   }
 
-  // called from Flash
-  function webSocketError(message) {
+  // called from Flash, make it visible at global scope
+  webSocketError = function(message) {
     console.error(decodeURIComponent(message));
   }
 

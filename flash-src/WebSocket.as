@@ -67,12 +67,35 @@ public class WebSocket extends EventDispatcher {
       socket.setProxyInfo(proxyHost, proxyPort);
     } 
     
+    socket.timeout = 1000;
     socket.addEventListener(Event.CLOSE, onSocketClose);
     socket.addEventListener(Event.CONNECT, onSocketConnect);
     socket.addEventListener(IOErrorEvent.IO_ERROR, onSocketIoError);
     socket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSocketSecurityError);
     socket.addEventListener(ProgressEvent.SOCKET_DATA, onSocketData);
+    main.log("Creating socket to "+host+":"+port);
     socket.connect(host, port);
+  }
+  
+  private function stateChange(newState:int):void {
+    main.log("stateChange("+readyState+" -> "+newState+")");
+    if (readyState == newState) {
+      // Nothing changed
+    }
+    else if (newState == CLOSED) {
+      readyState = CLOSED;
+      notifyStateChange();
+      dispatchEvent(new Event("close"));
+    }
+    else if (newState == OPEN) {
+      readyState = OPEN;
+      notifyStateChange();
+      dispatchEvent(new Event("open"));
+    }
+    else {
+      readyState = newState;
+      notifyStateChange();
+    }
   }
   
   public function send(data:String):int {
@@ -92,20 +115,17 @@ public class WebSocket extends EventDispatcher {
       // > You are trying to call recursively into the Flash Player which is not allowed.
       return bufferedAmount;
     } else {
-      main.fatal("invalid state");
+      main.error("invalid state");
       return 0;
     }
   }
   
   public function close():void {
-    main.log("close");
+    main.log("close()");
     try {
       socket.close();
     } catch (ex:Error) { }
-    readyState = CLOSED;
-    // We don't fire any events here because it causes weird error:
-    // > You are trying to call recursively into the Flash Player which is not allowed.
-    // We do something equivalent in JavaScript WebSocket#close instead.
+    stateChange(CLOSED);
   }
   
   public function getReadyState():int {
@@ -145,20 +165,18 @@ public class WebSocket extends EventDispatcher {
 
   private function onSocketClose(event:Event):void {
     main.log("closed");
-    readyState = CLOSED;
-    notifyStateChange();
-    dispatchEvent(new Event("close"));
+    stateChange(CLOSED);
   }
 
   private function onSocketIoError(event:IOErrorEvent):void {
+    main.log("failed to connect Web Socket server ("+event.type+": "+event.text+")");
     close();
-    main.fatal("failed to connect Web Socket server (IoError)");
   }
 
   private function onSocketSecurityError(event:SecurityErrorEvent):void {
     close();
-    main.fatal(
-      "failed to connect Web Socket server (SecurityError)\n" +
+    main.error(
+      "failed to connect Web Socket server ("+event.type+": "+event.text+")\n" +
       "make sure the server is running and Flash socket policy file is correctly placed");
   }
 
@@ -181,15 +199,14 @@ public class WebSocket extends EventDispatcher {
           validateHeader(headerStr);
           makeBufferCompact();
           pos = -1;
-          readyState = OPEN;
-          notifyStateChange();
-          dispatchEvent(new Event("open"));
+          stateChange(OPEN);
         }
       } else {
         if (buffer[pos] == 0xff) {
           if (buffer.readByte() != 0x00) {
             close();
-            main.fatal("data must start with \\x00");
+            main.error("data must start with \\x00");
+            return;
           }
           var data:String = buffer.readUTFBytes(pos - 1);
           main.log("received: " + data);
@@ -216,25 +233,25 @@ public class WebSocket extends EventDispatcher {
         close();
         main.fatal("failed to parse response header line: " + lines[i]);
       }
-      header[m[1]] = m[2];
+      header[m[1].toLowerCase()] = m[2].toLowerCase();
     }
-    if (header["Upgrade"] != "WebSocket") {
+    if (header["upgrade"] != "websocket") {
       close();
-      main.fatal("invalid Upgrade: " + header["Upgrade"]);
+      main.fatal("invalid Upgrade: " + header["upgrade"]);
     }
-    if (header["Connection"] != "Upgrade") {
+    if (header["connection"] != "upgrade") {
       close();
-      main.fatal("invalid Connection: " + header["Connection"]);
+      main.fatal("invalid Connection: " + header["connection"]);
     }
-    var resOrigin:String = header["WebSocket-Origin"].toLowerCase();
+    var resOrigin:String = header["websocket-origin"];
     if (resOrigin != origin) {
       close();
       main.fatal("origin doesn't match: '" + resOrigin + "' != '" + origin + "'");
     }
-    if (protocol && header["WebSocket-Protocol"] != protocol) {
+    if (protocol && header["websocket-protocol"] != protocol) {
       close();
       main.fatal("protocol doesn't match: '" +
-        header["WebSocket-Protocol"] + "' != '" + protocol + "'");
+        header["websocket-protocol"] + "' != '" + protocol + "'");
     }
   }
 
